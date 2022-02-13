@@ -28,7 +28,7 @@ Within spark-shell run cmd
 
 ```
 ##Deployment
-
+to deploy
 ## Authors
 
 * Ferdinand
