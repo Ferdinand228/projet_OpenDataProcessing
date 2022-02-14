@@ -7,7 +7,7 @@ import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.udf
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Paths}
+import java.nio.file.{AccessDeniedException, Files, Paths}
 import java.time.format.DateTimeFormatter
 import scala.collection.mutable
 import scala.util.control.Breaks.{break, breakable}
@@ -19,40 +19,92 @@ object calculateKPIofOpendata {
   def main(args: Array[String]): Unit = {
 
 
+    var temporary_path:String=""
+    var work_path:String=""
+    var business_Path:String=""
+
+   // Data directory management
+
+    if(args.length<1){
+      temporary_path="data/raw/"
+      work_path="data/work/"
+      business_Path="data/business/"
+    }
+    else if (args.length==1){
+      temporary_path=args(0)+"/raw/"
+      work_path=args(0)+"/work/"
+      business_Path=args(0)+"/business/"
+    }
+    else{
+      println("Too much parameter Used for that Application:\n -You have to use that application:\n either with one parameter representing the Path where you want to store the Data\n Or without any parameter")
+      break()
+    }
+
+    println("temporary_path:"+temporary_path)
+    println("Business_path:"+business_Path)
+    println("Work_path:"+work_path)
+// Data retrieving from opendata
+
     val current_date = DateTimeFormatter.ofPattern("ddMMYYYY").format(java.time.LocalDate.now)
-  val dataframe =  GetDataFromApi("data/raw/" + current_date + "/", "bor_erp.csv", url = "https://opendata.bordeaux-metropole.fr/api/v2/catalog/datasets/bor_erp/exports/csv?limit=-1&offset=0&timezone=UTC")
+    var dataframe:DataFrame=null
+    GetDataFromApi(temporary_path+ current_date + "/", "bor_erp.csv", url = "https://opendata.bordeaux-metropole.fr/api/v2/catalog/datasets/bor_erp/exports/csv?limit=-1&offset=0&timezone=UTC") match{
+        case Some(dataframe)=>println("No issue")
 
+          // Data processing from raw:
+          val newDataframe = dataframe.withColumn("type", when(col("type").isNull, lit("NOTR")).otherwise(col("type")))
 
+          // Save that dataframe as parquet in directory work (Question 1)
+          newDataframe.write.partitionBy("type").mode(SaveMode.Overwrite)
+            .parquet(work_path + current_date )
+
+          // Calculate Aggregation: the maximum capacity of visitors per street, with or without accommodation (Question 2)
+          val kpiDataframe = clean_data(newDataframe)
+            .groupBy(col("adresse_complete") , col("avec_hebergement"))agg(functions.sum(col("nb_visiteurs_max")))
+            .as("nombre_visiteurs_par_rue")
+
+        // ________________________________________________________________________________________________
+        // Store the dataset in file csv (Question 3)
+        kpiDataframe.repartition(1)
+          .write
+          .format("com.databricks.spark.csv")
+          .option("delimiter", ";")
+          .option("header", "true")
+          .mode(SaveMode.Overwrite)
+          .csv(business_Path +current_date )
+        //____________________________________________________________________________________________________
+
+        case None=>println("Permission Denied")
+          break()
+      }
 
 
     //) Data processing from raw:
 
-    val newDataframe = dataframe.withColumn("type", when(col("type").isNull, lit("NOTR")).otherwise(col("type")))
+    //val newDataframe = dataframe.withColumn("type", when(col("type").isNull, lit("NOTR")).otherwise(col("type")))
 
-    // Save tha dataframe as parquet in directory work (Question 1)
-   newDataframe.write.partitionBy("type").mode(SaveMode.Overwrite)
-    .parquet("data/work/" + current_date )
-
+    // Save that dataframe as parquet in directory work (Question 1)
+   //newDataframe.write.partitionBy("type").mode(SaveMode.Overwrite)
+    //.parquet(work_path + current_date )
 
 
     //_________________________________________________________________________________________________
 
     // Calculate Aggregation: the maximum capacity of visitors per street, with or without accommodation (Question 2)
 
-    val kpiDataframe = clean_data(newDataframe)
+   /* val kpiDataframe = clean_data(newDataframe)
       .groupBy(col("adresse_complete") , col("avec_hebergement"))agg(functions.sum(col("nb_visiteurs_max")))
-      .as("nombre_visiteurs_par_rue")
+      .as("nombre_visiteurs_par_rue")*/
 
 
     // ________________________________________________________________________________________________
     // Store the dataset in file csv (Question 3)
-    kpiDataframe.repartition(1)
+    /*kpiDataframe.repartition(1)
       .write
       .format("com.databricks.spark.csv")
       .option("delimiter", ";")
       .option("header", "true")
       .mode(SaveMode.Overwrite)
-      .csv("data/business/" +current_date )
+      .csv(business_Path +current_date )*/
    //____________________________________________________________________________________________________
 
   }
@@ -65,7 +117,7 @@ object calculateKPIofOpendata {
    * @param street, the street Name to standardize
    * @return the corresponding StreetName
    */
-  def standardizeStreetName(street:String): String={
+  private def standardizeStreetName(street:String): String={
 
     var rightName:String=""
     var rightNameMap=wordChange
@@ -129,7 +181,7 @@ object calculateKPIofOpendata {
 
   def spark_session(env: Boolean = true): SparkSession = {
 
-    if (env == true ) {
+    if (env ) {
       ss = SparkSession.builder()
         .master("local[*]")
         .config("spark.sql.crossJoin.enabled", "true")
@@ -155,20 +207,25 @@ object calculateKPIofOpendata {
    * @param url : url generate by API Opendata
    * @return dataframe
    */
-  private def GetDataFromApi(tmppath: String, filename: String, url: String): DataFrame = {
-    // Get data from API to stock
-    val result = scala.io.Source.fromURL(url).mkString //  dataset recovery
-    Files.createDirectories(Paths.get(tmppath)) // create directory if it not exist
-    Files.write(Paths.get(tmppath + filename), result.getBytes(StandardCharsets.UTF_8)) //write dataset with name in directory
+  private def GetDataFromApi(tmppath: String, filename: String, url: String): Option[DataFrame] = {
+    try {
+      // Get data from API to stock
+      val result = scala.io.Source.fromURL(url).mkString //  dataset recovery
+      Some(Files.createDirectories(Paths.get(tmppath)))// create directory if it not exist
+      Files.write(Paths.get(tmppath + filename), result.getBytes(StandardCharsets.UTF_8)) //write dataset with name in directory
 
-    // load csv file to dataframe with spark
-    val df= spark_session(env= true).read
-      .format("com.databricks.spark.csv")
-      .option("delimiter", ";")
-      .option("header", "true")
-      .option("inferSchema", "true")
-      .load(tmppath)
-    return df
+      // load csv file to dataframe with spark
+      val df = spark_session(true).read
+        .format("com.databricks.spark.csv")
+        .option("delimiter", ";")
+        .option("header", "true")
+        .option("inferSchema", "true")
+        .load(tmppath)
+      Some(df)
+    }
+    catch{
+      case e:AccessDeniedException =>None
+    }
   }
 
   /**
