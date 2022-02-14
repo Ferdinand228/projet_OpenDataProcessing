@@ -40,9 +40,6 @@ object calculateKPIofOpendata {
       break()
     }
 
-    println("temporary_path:"+temporary_path)
-    println("Business_path:"+business_Path)
-    println("Work_path:"+work_path)
 // Data retrieving from opendata
 
     val current_date = DateTimeFormatter.ofPattern("ddMMYYYY").format(java.time.LocalDate.now)
@@ -74,38 +71,8 @@ object calculateKPIofOpendata {
         //____________________________________________________________________________________________________
 
         case None=>println("Permission Denied")
-          break()
+
       }
-
-
-    //) Data processing from raw:
-
-    //val newDataframe = dataframe.withColumn("type", when(col("type").isNull, lit("NOTR")).otherwise(col("type")))
-
-    // Save that dataframe as parquet in directory work (Question 1)
-   //newDataframe.write.partitionBy("type").mode(SaveMode.Overwrite)
-    //.parquet(work_path + current_date )
-
-
-    //_________________________________________________________________________________________________
-
-    // Calculate Aggregation: the maximum capacity of visitors per street, with or without accommodation (Question 2)
-
-   /* val kpiDataframe = clean_data(newDataframe)
-      .groupBy(col("adresse_complete") , col("avec_hebergement"))agg(functions.sum(col("nb_visiteurs_max")))
-      .as("nombre_visiteurs_par_rue")*/
-
-
-    // ________________________________________________________________________________________________
-    // Store the dataset in file csv (Question 3)
-    /*kpiDataframe.repartition(1)
-      .write
-      .format("com.databricks.spark.csv")
-      .option("delimiter", ";")
-      .option("header", "true")
-      .mode(SaveMode.Overwrite)
-      .csv(business_Path +current_date )*/
-   //____________________________________________________________________________________________________
 
   }
 
