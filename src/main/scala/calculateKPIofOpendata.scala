@@ -1,11 +1,6 @@
-import org.apache.spark.sql._
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession, functions}
-import org.apache.spark.sql.catalyst.expressions.codegen.FalseLiteral
-import org.apache.spark.sql.functions.{array_distinct, col, concat_ws, current_date, exp, expr, lit, not, regexp_replace, udf, when}
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.udf
-
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession, functions}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{AccessDeniedException, Files, Paths}
 import java.time.format.DateTimeFormatter
