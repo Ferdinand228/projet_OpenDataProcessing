@@ -12,6 +12,8 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
+        <scala.langage.version>2.11.8</scala.langage.version>
+        <scala.compiler.version>2.13.1</scala.compiler.version>
     </properties>
 
     <dependencies>
@@ -71,6 +73,8 @@
                     </execution>
                 </executions>
             </plugin>
+
+
         </plugins>
     </build>
 
